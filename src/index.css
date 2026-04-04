@@ -1,0 +1,145 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@layer base {
+  :root {
+    --background: 220 20% 6%;
+    --foreground: 0 0% 95%;
+
+    --card: 220 18% 10%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 220 18% 10%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 0 85% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 15% 16%;
+    --secondary-foreground: 0 0% 90%;
+
+    --muted: 220 12% 14%;
+    --muted-foreground: 220 10% 55%;
+
+    --accent: 0 85% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 18%;
+    --input: 220 15% 18%;
+    --ring: 0 85% 50%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 220 18% 8%;
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-primary: 0 85% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 15% 14%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 220 15% 16%;
+    --sidebar-ring: 0 85% 50%;
+
+    /* Custom tokens */
+    --pitwall-red: 0 85% 50%;
+    --pitwall-red-glow: 0 90% 60%;
+    --pitwall-carbon: 220 20% 8%;
+    --pitwall-steel: 220 10% 22%;
+    --pitwall-green: 142 70% 45%;
+    --pitwall-yellow: 45 95% 55%;
+    --pitwall-blue: 210 90% 55%;
+    --pitwall-purple: 270 70% 55%;
+    --pitwall-orange: 25 95% 55%;
+    --pitwall-cyan: 185 80% 50%;
+
+    --font-display: 'Orbitron', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+
+    --gradient-hero: linear-gradient(135deg, hsl(0 85% 50% / 0.15), hsl(220 20% 6%) 60%);
+    --gradient-card: linear-gradient(180deg, hsl(220 18% 12%), hsl(220 18% 8%));
+    --gradient-red-glow: radial-gradient(ellipse at center, hsl(0 85% 50% / 0.12), transparent 70%);
+    --shadow-neon: 0 0 20px hsl(0 85% 50% / 0.3), 0 0 60px hsl(0 85% 50% / 0.1);
+    --shadow-card: 0 4px 24px hsl(0 0% 0% / 0.4);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-body);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  code, pre {
+    font-family: var(--font-mono);
+  }
+}
+
+@layer utilities {
+  .glow-red {
+    box-shadow: var(--shadow-neon);
+  }
+  .text-glow {
+    text-shadow: 0 0 10px hsl(var(--pitwall-red) / 0.5);
+  }
+  .bg-carbon {
+    background-color: hsl(var(--pitwall-carbon));
+  }
+  .bg-gradient-hero {
+    background: var(--gradient-hero);
+  }
+  .bg-gradient-card {
+    background: var(--gradient-card);
+  }
+  .font-display {
+    font-family: var(--font-display);
+  }
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(var(--pitwall-carbon));
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--pitwall-steel));
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--pitwall-red));
+}
+
+/* D3 tooltip */
+.d3-tooltip {
+  position: absolute;
+  padding: 8px 12px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: hsl(var(--foreground));
+  pointer-events: none;
+  z-index: 50;
+}
