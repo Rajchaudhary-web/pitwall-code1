@@ -34,53 +34,59 @@ export function useRaceData(): UseRaceDataReturn {
     setError(null);
     try {
       const sess = await openf1.getLatestSession();
-      if (sess) {
-        setSession(sess);
-        const [drv, wth] = await Promise.all([
-          openf1.getDrivers(sess.session_key),
-          openf1.getWeather(sess.session_key),
-        ]);
 
-        if (drv.length > 0) {
-          // Deduplicate drivers by driver_number
-          const unique = Array.from(new Map(drv.map(d => [d.driver_number, d])).values());
-          setDrivers(unique);
-          setIsLive(true);
-
-          // Fetch laps and stints for all drivers in parallel
-          const [allLaps, allStints, allPositions] = await Promise.all([
-            openf1.getLaps(sess.session_key),
-            openf1.getStints(sess.session_key),
-            openf1.getPositions(sess.session_key),
-          ]);
-
-          const lapMap = new Map<number, LapData[]>();
-          allLaps.forEach(l => {
-            if (!lapMap.has(l.driver_number)) lapMap.set(l.driver_number, []);
-            lapMap.get(l.driver_number)!.push(l);
-          });
-          setLaps(lapMap);
-
-          const stintMap = new Map<number, StintData[]>();
-          allStints.forEach(s => {
-            if (!stintMap.has(s.driver_number)) stintMap.set(s.driver_number, []);
-            stintMap.get(s.driver_number)!.push(s);
-          });
-          setStints(stintMap);
-
-          const posMap = new Map<number, PositionData[]>();
-          allPositions.forEach(p => {
-            if (!posMap.has(p.driver_number)) posMap.set(p.driver_number, []);
-            posMap.get(p.driver_number)!.push(p);
-          });
-          setPositions(posMap);
-
-          if (wth.length > 0) setWeather(wth[wth.length - 1]);
-          return;
-        }
+      if (!sess) {
+        console.warn("No session found → using sample data");
+        useSampleData();
+        return;
       }
-      // Fallback to sample data
+
+      setSession(sess);
+
+      // ✅ Only fetch drivers (no weather call)
+      const drv = await openf1.getDrivers(sess.session_key);
+
+      if (drv.length > 0) {
+        const unique = Array.from(new Map(drv.map(d => [d.driver_number, d])).values());
+        setDrivers(unique);
+        setIsLive(true);
+
+        // ✅ SEQUENTIAL CALLS (avoid 429)
+        const allLaps = await openf1.getLaps(sess.session_key);
+
+        // small delay to prevent rate limit
+        await new Promise(res => setTimeout(res, 500));
+
+        const allPositions = await openf1.getPositions(sess.session_key);
+
+        const allStints: StintData[] = []; // still disabled
+
+        const lapMap = new Map<number, LapData[]>();
+        allLaps.forEach(l => {
+          if (!lapMap.has(l.driver_number)) lapMap.set(l.driver_number, []);
+          lapMap.get(l.driver_number)!.push(l);
+        });
+        setLaps(lapMap);
+
+        const stintMap = new Map<number, StintData[]>();
+        allStints.forEach(s => {
+          if (!stintMap.has(s.driver_number)) stintMap.set(s.driver_number, []);
+          stintMap.get(s.driver_number)!.push(s);
+        });
+        setStints(stintMap);
+
+        const posMap = new Map<number, PositionData[]>();
+        allPositions.forEach(p => {
+          if (!posMap.has(p.driver_number)) posMap.set(p.driver_number, []);
+          posMap.get(p.driver_number)!.push(p);
+        });
+        setPositions(posMap);
+
+        return;
+      }
+
       useSampleData();
+
     } catch (e) {
       console.warn('Falling back to sample data:', e);
       useSampleData();
