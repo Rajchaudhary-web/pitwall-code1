@@ -28,10 +28,29 @@ export default function Dashboard() {
 
   const handleDriverSelect = useCallback((dn: number) => {
     setSelectedDriver(dn);
-    // Auto-generate strategy
+
     const driverLaps = laps.get(dn) || [];
     const driverStints = stints.get(dn) || [];
     const lastStint = driverStints[driverStints.length - 1];
+
+    // 🧠 NEW: Degradation Detection (SAFE ADDITION)
+    const lastLaps = driverLaps.slice(-3);
+    let degradation = 0;
+
+    if (lastLaps.length >= 2) {
+      const times = lastLaps.map(l => l.lap_duration).filter(Boolean);
+
+      if (times.length >= 2) {
+        const diffs = [];
+        for (let i = 1; i < times.length; i++) {
+          diffs.push(times[i] - times[i - 1]);
+        }
+
+        degradation =
+          diffs.reduce((a, b) => a + b, 0) / diffs.length;
+          console.log("Driver:", dn, "Degradation:", degradation);
+      }
+    }
 
     const raceState = {
       currentLap,
@@ -39,6 +58,7 @@ export default function Dashboard() {
       driverNumber: dn,
       currentCompound: lastStint?.compound || 'MEDIUM',
       tyreAge: lastStint ? currentLap - lastStint.lap_start : 10,
+      degradation, // ✅ NEW FIELD (does not break anything)
       position: 1,
       weather,
       rivalPositions: drivers
@@ -47,7 +67,8 @@ export default function Dashboard() {
         .map((d, i) => ({
           driverNumber: d.driver_number,
           position: i + 2,
-          compound: (stints.get(d.driver_number) || []).slice(-1)[0]?.compound || 'MEDIUM',
+          compound:
+            (stints.get(d.driver_number) || []).slice(-1)[0]?.compound || 'MEDIUM',
         })),
     };
 
@@ -93,10 +114,8 @@ export default function Dashboard() {
       </nav>
 
       <div className="max-w-[1400px] mx-auto px-4 py-6 space-y-6">
-        {/* Driver selector */}
         <DriverSelector drivers={drivers} selectedDriver={selectedDriver} onSelect={handleDriverSelect} />
 
-        {/* Rival selector */}
         {selectedDriver && (
           <DriverSelector
             drivers={drivers.filter(d => d.driver_number !== selectedDriver)}
@@ -106,22 +125,18 @@ export default function Dashboard() {
           />
         )}
 
-        {/* Main grid */}
         <div className="grid lg:grid-cols-3 gap-4">
-          {/* Left column - Strategy + Weather */}
           <div className="space-y-4">
             <StrategyPanel strategy={strategy} loading={loading} />
             <WeatherOverlay weather={weather} />
           </div>
 
-          {/* Center - Charts */}
           <div className="lg:col-span-2 space-y-4">
             <LapTimeChart laps={laps} drivers={drivers} selectedDrivers={selectedDrivers} />
             <PositionGraph positions={positions} drivers={drivers} selectedDrivers={selectedDrivers} />
           </div>
         </div>
 
-        {/* Bottom section */}
         <div className="grid lg:grid-cols-2 gap-4">
           {selectedDriver && rivalDriver && (
             <RivalComparisonPanel
@@ -135,12 +150,24 @@ export default function Dashboard() {
           <StrategyTimeline
             stints={stints}
             drivers={drivers}
-            selectedDrivers={selectedDrivers.length > 0 ? selectedDrivers : drivers.slice(0, 5).map(d => d.driver_number)}
+            selectedDrivers={
+              selectedDrivers.length > 0
+                ? selectedDrivers
+                : drivers.slice(0, 5).map(d => d.driver_number)
+            }
             totalLaps={totalLaps}
           />
         </div>
 
-        <PaceHeatmap laps={laps} drivers={drivers} selectedDrivers={selectedDrivers.length > 0 ? selectedDrivers : drivers.slice(0, 5).map(d => d.driver_number)} />
+        <PaceHeatmap
+          laps={laps}
+          drivers={drivers}
+          selectedDrivers={
+            selectedDrivers.length > 0
+              ? selectedDrivers
+              : drivers.slice(0, 5).map(d => d.driver_number)
+          }
+        />
       </div>
     </div>
   );

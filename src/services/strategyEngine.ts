@@ -17,16 +17,20 @@ const TYRE_CLIFF: Record<TyreCompound, number> = {
   WET: 35,
 };
 
-const PIT_STOP_LOSS = 22; // seconds
+const PIT_STOP_LOSS = 22;
 
-// Simple linear regression for lap time degradation
+// ML regression
 export function predictDegradation(laps: LapData[]): { slope: number; intercept: number } {
-  const valid = laps.filter(l => l.lap_duration && l.lap_duration > 60 && l.lap_duration < 120 && !l.is_pit_out_lap);
+  const valid = laps.filter(
+    l => l.lap_duration && l.lap_duration > 60 && l.lap_duration < 120 && !l.is_pit_out_lap
+  );
+
   if (valid.length < 3) return { slope: 0.08, intercept: 85 };
 
   const n = valid.length;
   const xs = valid.map((_, i) => i + 1);
   const ys = valid.map(l => l.lap_duration!);
+
   const sumX = xs.reduce((a, b) => a + b, 0);
   const sumY = ys.reduce((a, b) => a + b, 0);
   const sumXY = xs.reduce((a, x, i) => a + x * ys[i], 0);
@@ -42,19 +46,29 @@ export function generateStrategy(
   raceState: RaceState,
   driverLaps: LapData[] = []
 ): StrategyRecommendation {
-  const { currentLap, totalLaps, currentCompound, tyreAge, weather } = raceState;
+  const {
+    currentLap,
+    totalLaps,
+    currentCompound,
+    tyreAge,
+    weather,
+    degradation = 0 // ✅ NEW (safe default)
+  } = raceState as any;
+
   const lapsRemaining = totalLaps - currentLap;
   const rainProbability = weather.rainfall ? 0.9 : weather.humidity > 70 ? 0.4 : 0.1;
 
   // ML prediction
-  const { slope: degradationRate } = predictDegradation(driverLaps);
+  const { slope: mlDeg } = predictDegradation(driverLaps);
 
-  // Rule-based logic
+  // ✅ COMBINED DEGRADATION (REAL + ML)
+  const combinedDeg = (mlDeg * 0.7) + (degradation * 0.3);
+
   const tyreCliff = TYRE_CLIFF[currentCompound];
   const lapsToCliff = Math.max(0, tyreCliff - tyreAge);
   const baseDeg = DEGRADATION_RATES[currentCompound];
 
-  // Rain switch
+  // 🌧️ Rain logic
   if (rainProbability > 0.6 && currentCompound !== 'INTERMEDIATE' && currentCompound !== 'WET') {
     return {
       recommendedPitLap: currentLap + 1,
@@ -62,71 +76,79 @@ export function generateStrategy(
       totalLaps,
       tyreChoice: rainProbability > 0.8 ? 'WET' : 'INTERMEDIATE',
       confidence: 0.85,
-      explanation: `Rain probability at ${(rainProbability * 100).toFixed(0)}%. Immediate switch to ${rainProbability > 0.8 ? 'wets' : 'intermediates'} recommended.`,
-      degradationRate,
+      explanation: `Rain probability high. Immediate tyre switch required.`,
+      degradationRate: combinedDeg,
       estimatedTimeGain: 15,
       strategy: 'wet-switch',
       alternativeStrategies: [],
     };
   }
 
-  // Check rival pit strategies for undercut/overcut
+  // 🧠 SMART PIT DECISION (NEW CORE LOGIC)
+  let urgency: 'LOW' | 'MEDIUM' | 'HIGH' = 'LOW';
+
+  if (combinedDeg > 0.25 || tyreAge > tyreCliff) {
+    urgency = 'HIGH';
+  } else if (combinedDeg > 0.12 || tyreAge > tyreCliff * 0.8) {
+    urgency = 'MEDIUM';
+  }
+
+  // Rival logic
   const rivalsNearby = raceState.rivalPositions.filter(
     r => Math.abs(r.position - raceState.position) <= 2
   );
+
   const rivalPitting = rivalsNearby.some(r => r.compound !== currentCompound);
 
   let strategy: 'undercut' | 'overcut' | 'standard' = 'standard';
   let pitLapAdjust = 0;
 
-  if (rivalPitting && lapsToCliff > 3) {
+  if (rivalPitting && urgency !== 'HIGH') {
     strategy = 'undercut';
     pitLapAdjust = -2;
-  } else if (rivalPitting && lapsToCliff <= 3) {
+  } else if (rivalPitting && urgency === 'LOW') {
     strategy = 'overcut';
     pitLapAdjust = 2;
   }
 
-  // Optimal pit window
-  const optimalPitLap = Math.min(
-    currentLap + lapsToCliff + pitLapAdjust,
-    totalLaps - 5
-  );
+  // ⛽ FINAL PIT DECISION
+  let optimalPitLap = currentLap + lapsToCliff + pitLapAdjust;
 
-  // Choose next compound
-  let nextCompound: TyreCompound;
-  if (lapsRemaining > 30) {
-    nextCompound = 'HARD';
-  } else if (lapsRemaining > 18) {
-    nextCompound = 'MEDIUM';
-  } else {
-    nextCompound = currentCompound === 'SOFT' ? 'MEDIUM' : 'SOFT';
+  if (urgency === 'HIGH') {
+    optimalPitLap = currentLap + 1;
+  } else if (urgency === 'MEDIUM') {
+    optimalPitLap = Math.min(optimalPitLap, currentLap + 3);
   }
 
-  const timeGain = (tyreAge * baseDeg * 1.5) - PIT_STOP_LOSS / lapsRemaining;
-  const confidence = Math.min(0.95, 0.5 + (driverLaps.length / 50) + (tyreAge > tyreCliff * 0.7 ? 0.2 : 0));
+  optimalPitLap = Math.min(optimalPitLap, totalLaps - 5);
 
-  const alternatives = [
-    {
-      name: 'Aggressive',
-      pitLap: Math.max(currentLap + 1, optimalPitLap - 3),
-      tyre: 'SOFT' as TyreCompound,
-      estimatedDelta: -0.8,
-    },
-    {
-      name: 'Conservative',
-      pitLap: Math.min(totalLaps - 3, optimalPitLap + 4),
-      tyre: 'HARD' as TyreCompound,
-      estimatedDelta: 0.3,
-    },
-  ];
+  // Tyre choice
+  let nextCompound: TyreCompound;
+
+  if (lapsRemaining > 30) nextCompound = 'HARD';
+  else if (lapsRemaining > 18) nextCompound = 'MEDIUM';
+  else nextCompound = currentCompound === 'SOFT' ? 'MEDIUM' : 'SOFT';
+
+  const timeGain = (tyreAge * baseDeg * 1.5) - PIT_STOP_LOSS / Math.max(lapsRemaining, 1);
+
+  const confidence = Math.min(
+    0.95,
+    0.6 +
+    (driverLaps.length / 60) +
+    (urgency === 'HIGH' ? 0.2 : urgency === 'MEDIUM' ? 0.1 : 0)
+  );
 
   const explanations: string[] = [];
-  explanations.push(`Tyre age: ${tyreAge} laps. Cliff at ~${tyreCliff} laps.`);
-  explanations.push(`Degradation: +${(degradationRate).toFixed(3)}s/lap.`);
-  if (strategy === 'undercut') explanations.push('Rival threat detected — undercut recommended.');
-  if (strategy === 'overcut') explanations.push('Extending stint to overcut rival.');
-  explanations.push(`Switch to ${nextCompound} for optimal remaining race pace.`);
+  explanations.push(`Tyre age: ${tyreAge} laps (cliff ~${tyreCliff}).`);
+  explanations.push(`Degradation trend: ${combinedDeg.toFixed(3)}s/lap.`);
+
+  if (urgency === 'HIGH') explanations.push('Severe degradation detected — immediate pit recommended.');
+  else if (urgency === 'MEDIUM') explanations.push('Performance dropping — pit window approaching.');
+
+  if (strategy === 'undercut') explanations.push('Undercut opportunity vs rivals.');
+  if (strategy === 'overcut') explanations.push('Extending stint for overcut.');
+
+  explanations.push(`Next compound: ${nextCompound}.`);
 
   return {
     recommendedPitLap: Math.max(currentLap + 1, optimalPitLap),
@@ -135,9 +157,22 @@ export function generateStrategy(
     tyreChoice: nextCompound,
     confidence,
     explanation: explanations.join(' '),
-    degradationRate,
+    degradationRate: combinedDeg,
     estimatedTimeGain: Math.max(0, timeGain),
     strategy,
-    alternativeStrategies: alternatives,
+    alternativeStrategies: [
+      {
+        name: 'Aggressive',
+        pitLap: Math.max(currentLap + 1, optimalPitLap - 3),
+        tyre: 'SOFT',
+        estimatedDelta: -0.8,
+      },
+      {
+        name: 'Conservative',
+        pitLap: Math.min(totalLaps - 3, optimalPitLap + 4),
+        tyre: 'HARD',
+        estimatedDelta: 0.3,
+      },
+    ],
   };
 }
