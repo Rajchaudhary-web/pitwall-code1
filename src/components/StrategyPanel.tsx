@@ -37,6 +37,24 @@ export function StrategyPanel({ strategy, loading }: StrategyPanelProps) {
 
   const st = strategyLabels[strategy.strategy];
 
+  // 🧠 NEW: Race Mode Logic (UI-level intelligence layer)
+  let raceMode: 'ATTACK' | 'DEFEND' | 'BALANCED' = 'BALANCED';
+  let modeReason = 'Stable race conditions';
+
+  if (strategy.degradationRate > 0.08 && strategy.confidence > 0.7) {
+    raceMode = 'ATTACK';
+    modeReason = 'High degradation advantage → push for undercut';
+  } else if (strategy.degradationRate > 0.12 || strategy.confidence < 0.5) {
+    raceMode = 'DEFEND';
+    modeReason = 'Tyre risk or low confidence → protect position';
+  }
+
+  const modeStyles = {
+    ATTACK: 'text-pitwall-red',
+    DEFEND: 'text-pitwall-blue',
+    BALANCED: 'text-muted-foreground',
+  };
+
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
       {/* Header */}
@@ -47,6 +65,18 @@ export function StrategyPanel({ strategy, loading }: StrategyPanelProps) {
 
       {/* Main recommendation */}
       <div className="p-5 space-y-4">
+
+        {/* 🧠 NEW: Race Mode Box */}
+        <div className="rounded-md border border-border p-3 bg-secondary/30">
+          <div className="text-[10px] uppercase text-muted-foreground mb-1">Race Mode</div>
+          <div className={`text-sm font-mono font-bold ${modeStyles[raceMode]}`}>
+            {raceMode}
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-1">
+            {modeReason}
+          </div>
+        </div>
+
         <div className="grid grid-cols-3 gap-4">
           <StatBlock label="Pit Lap" value={`L${strategy.recommendedPitLap}`} highlight />
           <StatBlock
@@ -80,6 +110,20 @@ export function StrategyPanel({ strategy, loading }: StrategyPanelProps) {
               }}
             />
           </div>
+        </div>
+        {/* 🧪 Simulation Preview */}
+        <div className="rounded-md border border-border p-3 bg-secondary/30">
+          <div className="text-[10px] uppercase text-muted-foreground mb-1">
+         What If Analysis
+        </div>
+
+      <div className="text-xs font-mono text-foreground">
+          Pit Now: <span className="text-pitwall-green">+{(strategy.degradationRate * 15).toFixed(1)}s</span>
+      </div>
+
+      <div className="text-xs font-mono text-foreground">
+           Delay 3 laps: <span className="text-pitwall-red">-{(strategy.degradationRate * 8).toFixed(1)}s</span>
+     </div>
         </div>
 
         {/* Alternatives */}
