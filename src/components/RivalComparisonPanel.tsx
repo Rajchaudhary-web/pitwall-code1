@@ -21,6 +21,7 @@ export function RivalComparisonPanel({ driverNumber, rivalNumber, drivers, laps,
     const rLaps = laps.get(rivalNumber) || [];
     const dStints = stints.get(driverNumber) || [];
     const rStints = stints.get(rivalNumber) || [];
+   
 
     const deltas: { lap: number; delta: number }[] = [];
     let cumDelta = 0;
@@ -35,15 +36,60 @@ export function RivalComparisonPanel({ driverNumber, rivalNumber, drivers, laps,
       deltas.push({ lap: i + 1, delta: cumDelta });
     }
 
-    // Best laps
     const validD = dLaps.filter(l => l.lap_duration && !l.is_pit_out_lap && l.lap_duration < 110);
     const validR = rLaps.filter(l => l.lap_duration && !l.is_pit_out_lap && l.lap_duration < 110);
+
     const bestD = validD.length > 0 ? Math.min(...validD.map(l => l.lap_duration!)) : null;
     const bestR = validR.length > 0 ? Math.min(...validR.map(l => l.lap_duration!)) : null;
+
     const avgD = validD.length > 0 ? validD.reduce((s, l) => s + l.lap_duration!, 0) / validD.length : null;
     const avgR = validR.length > 0 ? validR.reduce((s, l) => s + l.lap_duration!, 0) / validR.length : null;
 
-    return { deltas, bestD, bestR, avgD, avgR, dStints, rStints, lastDelta: cumDelta };
+  let rivalPrediction = null;
+
+const lastStint = rStints[rStints.length - 1];
+
+if (lastStint) {
+  const tyreAge = rLaps.length - lastStint.lap_start;
+  const cliff =
+    lastStint.compound === 'SOFT'
+      ? 18
+      : lastStint.compound === 'MEDIUM'
+      ? 28
+      : 40;
+
+  const lapsToPit = Math.max(1, cliff - tyreAge);
+
+  rivalPrediction = {
+    lapsToPit,
+    tyre: lastStint.compound,
+    risk: lapsToPit <= 3 ? 'HIGH' : lapsToPit <= 6 ? 'MEDIUM' : 'LOW',
+  };
+} else if (rLaps.length > 5) {
+  // 🔥 Fallback when stints missing
+  const tyreAge = rLaps.length;
+  const cliff = 25;
+
+  const lapsToPit = Math.max(1, cliff - tyreAge);
+
+  rivalPrediction = {
+    lapsToPit,
+    tyre: 'UNKNOWN',
+    risk: lapsToPit <= 3 ? 'HIGH' : lapsToPit <= 6 ? 'MEDIUM' : 'LOW',
+  };
+}
+
+    return {
+      deltas,
+      bestD,
+      bestR,
+      avgD,
+      avgR,
+      dStints,
+      rStints,
+      lastDelta: cumDelta,
+      rivalPrediction,
+    };
   }, [driverNumber, rivalNumber, laps, stints]);
 
   if (!driver || !rival) return null;
@@ -53,6 +99,7 @@ export function RivalComparisonPanel({ driverNumber, rivalNumber, drivers, laps,
       <div className="px-5 py-3 border-b border-border">
         <h3 className="text-sm font-display tracking-wider text-foreground">Rival Comparison</h3>
       </div>
+
       <div className="p-4 space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -66,14 +113,33 @@ export function RivalComparisonPanel({ driverNumber, rivalNumber, drivers, laps,
           <DriverBadge driver={rival} />
         </div>
 
-        {/* Stats comparison */}
+        {/* 🧠 NEW: Rival Prediction Box */}
+        {comparison.rivalPrediction && (
+          <div className="rounded-md border border-border p-3 bg-secondary/30">
+            <div className="text-[10px] uppercase text-muted-foreground mb-1">Rival Strategy Insight</div>
+            <div className="text-xs font-mono text-foreground">
+              Pit in ~{comparison.rivalPrediction.lapsToPit} laps · Tyre: {comparison.rivalPrediction.tyre}
+            </div>
+            <div className={`text-[10px] font-bold mt-1 ${
+              comparison.rivalPrediction.risk === 'HIGH'
+                ? 'text-pitwall-red'
+                : comparison.rivalPrediction.risk === 'MEDIUM'
+                ? 'text-yellow-400'
+                : 'text-pitwall-green'
+            }`}>
+              Undercut Risk: {comparison.rivalPrediction.risk}
+            </div>
+          </div>
+        )}
+
+        {/* Stats */}
         <div className="grid grid-cols-3 gap-px bg-border rounded overflow-hidden text-center">
           <CompareCell label="Best Lap" v1={formatLapTime(comparison.bestD)} v2={formatLapTime(comparison.bestR)} better={comparison.bestD && comparison.bestR ? (comparison.bestD < comparison.bestR ? 1 : 2) : 0} />
           <CompareCell label="Avg Pace" v1={formatLapTime(comparison.avgD)} v2={formatLapTime(comparison.avgR)} better={comparison.avgD && comparison.avgR ? (comparison.avgD < comparison.avgR ? 1 : 2) : 0} />
           <CompareCell label="Pit Stops" v1={`${comparison.dStints.length - 1}`} v2={`${comparison.rStints.length - 1}`} better={0} />
         </div>
 
-        {/* Stint timelines */}
+        {/* Stints */}
         <div className="space-y-1.5">
           <StintTimeline stints={comparison.dStints} acronym={driver.name_acronym} />
           <StintTimeline stints={comparison.rStints} acronym={rival.name_acronym} />
