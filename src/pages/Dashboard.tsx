@@ -48,7 +48,7 @@ export default function Dashboard() {
 
         degradation =
           diffs.reduce((a, b) => a + b, 0) / diffs.length;
-          console.log("Driver:", dn, "Degradation:", degradation);
+          //console.log("Driver:", dn, "Degradation:", degradation);
       }
     }
 
@@ -112,6 +112,7 @@ export default function Dashboard() {
           </div>
         </div>
       </nav>
+      
 
       <div className="max-w-[1400px] mx-auto px-4 py-6 space-y-6">
         <DriverSelector drivers={drivers} selectedDriver={selectedDriver} onSelect={handleDriverSelect} />
@@ -158,6 +159,7 @@ export default function Dashboard() {
             totalLaps={totalLaps}
           />
         </div>
+        
 
         <PaceHeatmap
           laps={laps}

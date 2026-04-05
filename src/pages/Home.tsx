@@ -1,7 +1,13 @@
 import { Link } from 'react-router-dom';
 import { Activity, BarChart3, Zap, Cloud, Flag, ChevronRight } from 'lucide-react';
+import React from "react";
+import { useNavigate } from "react-router-dom";
+
 
 export default function Home() {
+  const [loading, setLoading] = React.useState(false);
+  const navigate = useNavigate();
+  
   return (
     <div className="min-h-screen bg-background bg-gradient-hero">
       {/* Nav */}
@@ -11,17 +17,13 @@ export default function Home() {
             <div className="w-2 h-2 rounded-full bg-primary animate-pulse-glow" />
             <span className="font-display text-sm tracking-widest text-foreground">PITWALL AI</span>
           </div>
-          <Link
-            to="/dashboard"
-            className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-xs font-display tracking-wider hover:opacity-90 transition-opacity"
-          >
-            LAUNCH DASHBOARD
-          </Link>
+\
         </div>
       </nav>
 
       {/* Hero */}
-      <div className="max-w-6xl mx-auto px-6 pt-24 pb-16">
+      
+      <div className="max-w-6xl mx-auto px-6 pt-24 pb-16 animate-fade-in-up">
         <div className="max-w-3xl">
           <div className="flex items-center gap-2 mb-6">
             <div className="h-px flex-1 max-w-12 bg-primary" />
@@ -35,17 +37,22 @@ export default function Home() {
             Real-time telemetry analysis, predictive tyre degradation models, and rival tracking — 
             all powered by live F1 data from the OpenF1 API.
           </p>
-          <Link
-            to="/dashboard"
-            className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md font-display text-sm tracking-wider glow-red hover:opacity-90 transition-opacity"
-          >
-            ENTER PITWALL <ChevronRight className="w-4 h-4" />
-          </Link>
+          <button
+  onClick={() => {
+    setLoading(true);
+    setTimeout(() => {
+      navigate("/dashboard");
+    }, 800);
+  }}
+  className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md font-display text-sm tracking-wider glow-red hover:opacity-90 transition-opacity"
+>
+  ENTER PITWALL <ChevronRight className="w-4 h-4" />
+</button>
         </div>
       </div>
 
       {/* Features */}
-      <div className="max-w-6xl mx-auto px-6 pb-24">
+      <div className="max-w-6xl mx-auto px-6 pb-24 animate-fade-in-up delay-200">
         <div className="grid md:grid-cols-3 gap-4">
           {[
             { icon: <Zap className="w-5 h-5" />, title: 'AI Strategy Engine', desc: 'ML-powered tyre degradation predictions and optimal pit windows with undercut/overcut analysis.' },
@@ -57,7 +64,7 @@ export default function Home() {
           ].map((f, i) => (
             <div
               key={i}
-              className="group border border-border rounded-lg p-5 bg-card hover:border-primary/30 transition-all duration-300"
+              className="group border border-border rounded-lg p-5 bg-card hover:border-primary/30 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
             >
               <div className="text-primary mb-3">{f.icon}</div>
               <h3 className="text-xs font-display tracking-wider text-foreground mb-2">{f.title}</h3>
@@ -74,6 +81,17 @@ export default function Home() {
           <span>Powered by OpenF1 API</span>
         </div>
       </footer>
+{loading && (
+  <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center z-50">
+    <div className="text-primary font-display tracking-widest text-sm animate-pulse mb-3">
+      INITIALIZING RACE CONTROL...
+    </div>
+
+    <div className="w-32 h-1 bg-secondary rounded overflow-hidden">
+      <div className="h-full bg-primary animate-[loadingBar_1.5s_linear]" />
+    </div>
+  </div>
+)}
     </div>
   );
 }
